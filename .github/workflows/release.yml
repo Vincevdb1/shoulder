@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          # shoulder is pure Go, so one runner builds all targets.
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            name="shoulder-${os}-${arch}"
+            mkdir -p "dist/$name"
+            GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/$name/shoulder" .
+            cp README.md LICENSE "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            rm -rf "dist/$name"
+          done
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Write release notes
+        run: |
+          # The notes are the section of CHANGELOG.md for this tag.
+          awk -v tag="${GITHUB_REF_NAME}" '
+            /^## / { found = ($2 == tag); next }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "shoulder ${GITHUB_REF_NAME}" \
+            --notes-file notes.md \
+            dist/*.tar.gz dist/checksums.txt site/shoulder-demo.mp4

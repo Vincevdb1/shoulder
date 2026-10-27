@@ -1,0 +1,64 @@
+// shoulder shows what coding agents do in a project, live: the files they
+// read and edit, the commands they run, and the diff against the last commit.
+// It reads the session logs of Claude Code, Codex, Gemini CLI and opencode.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/bjarneo/shoulder/internal/repo"
+	"github.com/bjarneo/shoulder/internal/ui"
+	"github.com/bjarneo/shoulder/internal/watch"
+)
+
+// version is set at build time with -ldflags "-X main.version=v0.1.0".
+var version = "dev"
+
+func main() {
+	since := flag.Duration("since", time.Hour, "show sessions with activity in this period")
+	splits := flag.Bool("splits", false, "start with one split per agent")
+	signs := flag.Bool("signs", false, "show changes as signs instead of inline deleted lines")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: shoulder [flags] [dir]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Watch the coding agents that work in dir, or in the current directory.")
+		fmt.Fprintln(os.Stderr, "shoulder reads the sessions of Claude Code, Codex, Gemini CLI and opencode.")
+		fmt.Fprintln(os.Stderr)
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+	if *showVersion {
+		fmt.Println("shoulder", version)
+		return
+	}
+
+	dir := "."
+	if flag.NArg() > 0 {
+		dir = flag.Arg(0)
+	}
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		fmt.Fprintf(os.Stderr, "shoulder: %s is not a directory\n", dir)
+		os.Exit(2)
+	}
+
+	r := repo.Open(dir)
+	w := watch.New(watch.Options{Root: r.Root, Since: *since})
+	m := ui.New(r, w, ui.Options{Splits: *splits, Signs: *signs, Since: *since})
+	p := tea.NewProgram(m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go w.Run(ctx, func(s watch.Snapshot) { p.Send(ui.Snapshot(s)) })
+	_, err := p.Run()
+	cancel()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "shoulder:", err)
+		os.Exit(1)
+	}
+}
