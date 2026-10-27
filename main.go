@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -35,6 +36,10 @@ func main() {
 	}
 	flag.Parse()
 	if *showVersion {
+		// go install builds carry the module version instead of ldflags.
+		if info, ok := debug.ReadBuildInfo(); ok && version == "dev" && info.Main.Version != "(devel)" && info.Main.Version != "" {
+			version = info.Main.Version
+		}
 		fmt.Println("shoulder", version)
 		return
 	}
