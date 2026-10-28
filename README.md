@@ -1,6 +1,8 @@
 # shoulder
 
-Watch your coding agents work, live. shoulder follows Claude Code, Codex, Gemini CLI and opencode through your project. It shows the file that each agent reads or edits, the diff against your last commit, and the commands that it runs.
+**Watch over your agents' shoulder.**
+
+See your coding agents work, live. shoulder follows Claude Code, Codex, Gemini CLI and opencode through your project. It shows the file that each agent reads or edits, the diff against your last commit, and the commands that it runs.
 
 [![Claude simplifies snake.js one line at a time while Codex adds tests. shoulder follows both.](site/poster.jpg)](https://bjarneo.github.io/shoulder/)
 
